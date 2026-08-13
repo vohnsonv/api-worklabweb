@@ -1,0 +1,37 @@
+{
+  "name": "api-worklabweb",
+  "version": "1.0.0",
+  "description": "API REST, Webhooks e Coletor 24/7 de integração para o sistema WorkLab Web",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "dev": "ts-node src/app.ts"
+  },
+  "keywords": [
+    "worklab",
+    "scraper",
+    "automation",
+    "api",
+    "webhook",
+    "docker"
+  ],
+  "author": "Antigravity Senior Software Engineer",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "better-sqlite3": "^11.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "playwright": "^1.50.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

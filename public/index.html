@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorkLab Web - Painel de Integração & Webhooks 24/7</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app-container">
+    
+    <!-- Sidebar Left -->
+    <aside class="sidebar">
+      <div>
+        <div class="logo-container">
+          <div class="logo-icon">WL</div>
+          <div class="logo-text">
+            <h1>WorkLab API</h1>
+            <span>Integração 24/7</span>
+          </div>
+        </div>
+
+        <nav class="nav-menu">
+          <div class="nav-item active" data-tab="tab-overview" id="nav-overview">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            <span>Visão Geral</span>
+          </div>
+
+          <div class="nav-item" data-tab="tab-atendimentos" id="nav-atendimentos">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Atendimentos & Exames</span>
+          </div>
+
+          <div class="nav-item" data-tab="tab-webhooks" id="nav-webhooks">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span>Webhooks & Gatilhos</span>
+          </div>
+
+          <div class="nav-item" data-tab="tab-logs" id="nav-logs">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Logs & Auditoria</span>
+          </div>
+        </nav>
+      </div>
+
+      <!-- Widget de Status do Coletor -->
+      <div class="collector-status-card">
+        <div class="pulse-dot"></div>
+        <div class="status-info">
+          <h4>Coletor 24/7 Ativo</h4>
+          <p id="txt-last-sync">Última sync: carregando...</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+      
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-title">
+          <h2 id="page-title">Painel de Controle WorkLab</h2>
+          <p id="page-subtitle">Coleta contínua de 5 meses + Carga Histórica 2020-2026</p>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn btn-secondary" id="btn-trigger-historical" style="border-color: var(--accent-purple); color: var(--accent-purple);">
+            ⏳ Carga Histórica (2020-2026)
+          </button>
+
+          <button class="btn btn-secondary" id="btn-refresh">
+            🔄 Atualizar
+          </button>
+
+          <button class="btn btn-primary" id="btn-trigger-sync">
+            ⚡ Sincronizar Agora
+          </button>
+        </div>
+      </header>
+
+      <!-- Metric Cards Grid -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Total de Atendimentos</span>
+          </div>
+          <div class="metric-value" id="stat-total-atendimentos">0</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Faturamento Acumulado</span>
+          </div>
+          <div class="metric-value" id="stat-total-faturado" style="color: var(--accent-cyan);">R$ 0,00</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Laudos PDF Concluídos</span>
+          </div>
+          <div class="metric-value" id="stat-laudos-concluidos" style="color: var(--success);">0</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Webhooks Cadastrados</span>
+          </div>
+          <div class="metric-value" id="stat-webhooks-ativos" style="color: var(--accent-purple);">0</div>
+        </div>
+      </div>
+
+      <!-- TAB 1: VISÃO GERAL -->
+      <div class="tab-view active" id="tab-overview">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Atendimentos Recentes</h3>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Protocolo</th>
+                <th>Paciente</th>
+                <th>CPF</th>
+                <th>Data</th>
+                <th>Convênio</th>
+                <th>Valor Final</th>
+                <th>Status Laudo</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-recent-atendimentos">
+              <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Carregando atendimentos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 2: ATENDIMENTOS & EXAMES DETALHADOS -->
+      <div class="tab-view" id="tab-atendimentos">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Gestão Completa de Atendimentos, Exames & Pacientes</h3>
+            <div class="search-box">
+              <input type="text" class="input-control" id="search-atendimentos" placeholder="Buscar por protocolo, nome, CPF ou atendente...">
+              <select class="input-control" id="filter-status">
+                <option value="">Todos os Status</option>
+                <option value="CONCLUIDO">Laudo Concluído</option>
+                <option value="PENDENTE">Pendente / Análise</option>
+              </select>
+            </div>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Protocolo</th>
+                <th>Paciente / CPF</th>
+                <th>Data Cad.</th>
+                <th>Convênio / Unidade</th>
+                <th>Atendente</th>
+                <th>Valor Final</th>
+                <th>Exames</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-full-atendimentos">
+              <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Carregando listagem completa...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 3: WEBHOOKS & GATILHOS -->
+      <div class="tab-view" id="tab-webhooks">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Cadastrar Novo Webhook</h3>
+          </div>
+          <form id="form-create-webhook">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+              <div class="form-group">
+                <label for="webhook-url">URL de Destino (Endpoint HTTP POST)</label>
+                <input type="url" class="input-control" id="webhook-url" placeholder="https://sua-api.com/webhook/worklab" required>
+              </div>
+              <div class="form-group">
+                <label for="webhook-desc">Descrição / Identificação</label>
+                <input type="text" class="input-control" id="webhook-desc" placeholder="Ex: Notificador WhatsApp / ERP">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div class="form-group">
+                <label for="webhook-events">Eventos Inscritos</label>
+                <input type="text" class="input-control" id="webhook-events" value="laudo_concluido,novo_atendimento" required>
+              </div>
+              <div class="form-group">
+                <label for="webhook-secret">Segredo HMAC (opcional)</label>
+                <input type="text" class="input-control" id="webhook-secret" placeholder="Gerado automaticamente se em branco">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Salvar Webhook</button>
+          </form>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Endpoints de Webhook Ativos</h3>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>URL</th>
+                <th>Descrição</th>
+                <th>Eventos</th>
+                <th>Segredo HMAC</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-webhooks">
+              <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhum webhook cadastrado.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 4: LOGS & AUDITORIA -->
+      <div class="tab-view" id="tab-logs">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Histórico de Disparos de Webhook</h3>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data/Hora (Recife)</th>
+                <th>Evento</th>
+                <th>URL Webhook</th>
+                <th>Status HTTP</th>
+                <th>Tentativas</th>
+                <th>Resultado</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-webhook-logs">
+              <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando logs de webhook...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Histórico de Sincronizações 24/7</h3>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data/Hora (Recife)</th>
+                <th>Status</th>
+                <th>Encontrados</th>
+                <th>Novos</th>
+                <th>Laudos Baixados</th>
+                <th>Webhooks Enviados</th>
+                <th>Mensagem Erro</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-sync-logs">
+              <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando logs de sincronização...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

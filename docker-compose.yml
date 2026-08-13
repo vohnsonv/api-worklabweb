@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  api-worklabweb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-worklabweb-service
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - WORKLAB_URL=https://www.worklabweb.com.br/index.php
+      - WORKLAB_ID=881/0
+      - WORKLAB_PASSWORD=SUA_SENHA_AQUI
+      - SYNC_INTERVAL_MINUTES=1
+      - DB_PATH=/app/data/worklab.db
+      - STORAGE_PATH=/app/data/laudos
+      - API_KEY=SUA_CHAVE_API_AQUI
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/v1/stats || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
