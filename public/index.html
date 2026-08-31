@@ -3,275 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WorkLab Web - Painel de Integração & Webhooks 24/7</title>
+  <title>WorkLab Web - Painel de Integração</title>
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="app-container">
-    
-    <!-- Sidebar Left -->
+
     <aside class="sidebar">
-      <div>
+      <div class="sidebar-top">
         <div class="logo-container">
-          <div class="logo-icon">WL</div>
-          <div class="logo-text">
-            <h1>WorkLab API</h1>
-            <span>Integração 24/7</span>
-          </div>
+          <img src="logo.png" alt="WorkLab" class="logo-image">
         </div>
 
-        <nav class="nav-menu">
-          <div class="nav-item active" data-tab="tab-overview" id="nav-overview">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        <nav class="nav-menu" id="nav-menu">
+          <div class="nav-item active" data-view="overview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
             <span>Visão Geral</span>
           </div>
-
-          <div class="nav-item" data-tab="tab-atendimentos" id="nav-atendimentos">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            <span>Atendimentos & Exames</span>
+          <div class="nav-item" data-view="atendimentos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Atendimentos</span>
+          </div>
+          <div class="nav-item" data-view="exames">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Exames</span>
+          </div>
+          <div class="nav-item" data-view="webhooks">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span>Webhooks</span>
+          </div>
+          <div class="nav-item" data-view="logs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            <span>Logs</span>
           </div>
 
-          <div class="nav-item" data-tab="tab-webhooks" id="nav-webhooks">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            <span>Webhooks & Gatilhos</span>
-          </div>
+          <div class="nav-section">Módulos WorkLab</div>
+          <div id="nav-modules"></div>
 
-          <div class="nav-item" data-tab="tab-logs" id="nav-logs">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>Logs & Auditoria</span>
+          <div class="nav-item" data-view="config">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Configurações</span>
           </div>
         </nav>
       </div>
 
-      <!-- Widget de Status do Coletor -->
       <div class="collector-status-card">
-        <div class="pulse-dot"></div>
+        <div class="pulse-dot" id="collector-dot"></div>
         <div class="status-info">
-          <h4>Coletor 24/7 Ativo</h4>
+          <h4 id="collector-status-label">Coletor ativo</h4>
           <p id="txt-last-sync">Última sync: carregando...</p>
         </div>
+        <label class="switch" title="Ligar/desligar coletor">
+          <input type="checkbox" id="collector-toggle">
+          <span class="switch-slider"></span>
+        </label>
       </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="content">
-      
-      <!-- Top Header -->
       <header class="top-header">
         <div class="header-title">
-          <h2 id="page-title">Painel de Controle WorkLab</h2>
-          <p id="page-subtitle">Coleta contínua de 5 meses + Carga Histórica 2020-2026</p>
+          <h2 id="page-title">Painel de Controle | API</h2>
+          <p id="page-subtitle">Gerenciamento, monitoramento, ajustes, configurações</p>
         </div>
-
         <div class="header-actions">
-          <button class="btn btn-secondary" id="btn-trigger-historical" style="border-color: var(--accent-purple); color: var(--accent-purple);">
-            ⏳ Carga Histórica (2020-2026)
+          <button class="btn btn-ghost theme-toggle" id="btn-theme" aria-label="Alternar tema">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
-
-          <button class="btn btn-secondary" id="btn-refresh">
-            🔄 Atualizar
+          <button class="btn btn-ghost" id="btn-trigger-historical">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Carga Histórica
           </button>
-
+          <button class="btn btn-ghost" id="btn-refresh">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+            Atualizar
+          </button>
           <button class="btn btn-primary" id="btn-trigger-sync">
-            ⚡ Sincronizar Agora
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Sincronizar
           </button>
         </div>
       </header>
 
-      <!-- Metric Cards Grid -->
-      <div class="metrics-grid">
+      <div class="metrics-grid" id="metrics-grid">
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Total de Atendimentos</span>
-          </div>
-          <div class="metric-value" id="stat-total-atendimentos">0</div>
+          <div class="metric-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div class="metric-body"><div class="metric-value" id="stat-atendimentos">0</div><div class="metric-title">Atendimentos</div></div>
         </div>
-
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Faturamento Acumulado</span>
-          </div>
-          <div class="metric-value" id="stat-total-faturado" style="color: var(--accent-cyan);">R$ 0,00</div>
+          <div class="metric-icon icon-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          <div class="metric-body"><div class="metric-value" id="stat-exames">0</div><div class="metric-title">Exames</div></div>
         </div>
-
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Laudos PDF Concluídos</span>
-          </div>
-          <div class="metric-value" id="stat-laudos-concluidos" style="color: var(--success);">0</div>
+          <div class="metric-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="metric-body"><div class="metric-value" id="stat-faturado">R$ 0,00</div><div class="metric-title">Faturamento</div></div>
         </div>
-
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-title">Webhooks Cadastrados</span>
-          </div>
-          <div class="metric-value" id="stat-webhooks-ativos" style="color: var(--accent-purple);">0</div>
+          <div class="metric-icon icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
+          <div class="metric-body"><div class="metric-value" id="stat-webhooks">0</div><div class="metric-title">Webhooks ativos</div></div>
         </div>
       </div>
 
-      <!-- TAB 1: VISÃO GERAL -->
-      <div class="tab-view active" id="tab-overview">
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Atendimentos Recentes</h3>
-          </div>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Protocolo</th>
-                <th>Paciente</th>
-                <th>CPF</th>
-                <th>Data</th>
-                <th>Convênio</th>
-                <th>Valor Final</th>
-                <th>Status Laudo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-recent-atendimentos">
-              <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Carregando atendimentos...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TAB 2: ATENDIMENTOS & EXAMES DETALHADOS -->
-      <div class="tab-view" id="tab-atendimentos">
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Gestão Completa de Atendimentos, Exames & Pacientes</h3>
-            <div class="search-box">
-              <input type="text" class="input-control" id="search-atendimentos" placeholder="Buscar por protocolo, nome, CPF ou atendente...">
-              <select class="input-control" id="filter-status">
-                <option value="">Todos os Status</option>
-                <option value="CONCLUIDO">Laudo Concluído</option>
-                <option value="PENDENTE">Pendente / Análise</option>
-              </select>
-            </div>
-          </div>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Protocolo</th>
-                <th>Paciente / CPF</th>
-                <th>Data Cad.</th>
-                <th>Convênio / Unidade</th>
-                <th>Atendente</th>
-                <th>Valor Final</th>
-                <th>Exames</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-full-atendimentos">
-              <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Carregando listagem completa...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TAB 3: WEBHOOKS & GATILHOS -->
-      <div class="tab-view" id="tab-webhooks">
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Cadastrar Novo Webhook</h3>
-          </div>
-          <form id="form-create-webhook">
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
-              <div class="form-group">
-                <label for="webhook-url">URL de Destino (Endpoint HTTP POST)</label>
-                <input type="url" class="input-control" id="webhook-url" placeholder="https://sua-api.com/webhook/worklab" required>
-              </div>
-              <div class="form-group">
-                <label for="webhook-desc">Descrição / Identificação</label>
-                <input type="text" class="input-control" id="webhook-desc" placeholder="Ex: Notificador WhatsApp / ERP">
-              </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-              <div class="form-group">
-                <label for="webhook-events">Eventos Inscritos</label>
-                <input type="text" class="input-control" id="webhook-events" value="laudo_concluido,novo_atendimento" required>
-              </div>
-              <div class="form-group">
-                <label for="webhook-secret">Segredo HMAC (opcional)</label>
-                <input type="text" class="input-control" id="webhook-secret" placeholder="Gerado automaticamente se em branco">
-              </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Salvar Webhook</button>
-          </form>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Endpoints de Webhook Ativos</h3>
-          </div>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>URL</th>
-                <th>Descrição</th>
-                <th>Eventos</th>
-                <th>Segredo HMAC</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-webhooks">
-              <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhum webhook cadastrado.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TAB 4: LOGS & AUDITORIA -->
-      <div class="tab-view" id="tab-logs">
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Histórico de Disparos de Webhook</h3>
-          </div>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Data/Hora (Recife)</th>
-                <th>Evento</th>
-                <th>URL Webhook</th>
-                <th>Status HTTP</th>
-                <th>Tentativas</th>
-                <th>Resultado</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-webhook-logs">
-              <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando logs de webhook...</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Histórico de Sincronizações 24/7</h3>
-          </div>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Data/Hora (Recife)</th>
-                <th>Status</th>
-                <th>Encontrados</th>
-                <th>Novos</th>
-                <th>Laudos Baixados</th>
-                <th>Webhooks Enviados</th>
-                <th>Mensagem Erro</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-sync-logs">
-              <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando logs de sincronização...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+      <div id="tab-content"></div>
     </main>
+  </div>
+
+  <div class="modal-backdrop" id="info-modal" onclick="closeInfoModal()">
+    <div class="modal-panel" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Como esta informação é capturada</h3>
+        <button class="modal-close" onclick="closeInfoModal()" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" id="info-modal-body"></div>
+    </div>
   </div>
 
   <script src="js/app.js"></script>

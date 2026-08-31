@@ -4,7 +4,7 @@ import { ENV } from '../config/env';
 const db = new Database(ENV.DB_PATH);
 db.pragma('journal_mode = WAL');
 
-// Inicialização das tabelas relacionais
+// Estrutura relacional principal (atendimentos + exames)
 db.exec(`
   CREATE TABLE IF NOT EXISTS atendimentos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,22 +52,12 @@ db.exec(`
     FOREIGN KEY(atendimento_id) REFERENCES atendimentos(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS laudos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    atendimento_id INTEGER UNIQUE NOT NULL,
-    filepath TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    mime_type TEXT DEFAULT 'application/pdf',
-    downloaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(atendimento_id) REFERENCES atendimentos(id) ON DELETE CASCADE
-  );
-
   CREATE TABLE IF NOT EXISTS webhooks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT NOT NULL,
     description TEXT,
     secret TEXT NOT NULL,
-    events TEXT NOT NULL DEFAULT 'laudo_concluido,novo_atendimento',
+    events TEXT NOT NULL DEFAULT 'novo_atendimento',
     active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -87,10 +77,10 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS sync_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    module TEXT DEFAULT 'atendimentos',
     status TEXT NOT NULL,
-    atendimentos_encontrados INTEGER DEFAULT 0,
-    novos_atendimentos INTEGER DEFAULT 0,
-    laudos_baixados INTEGER DEFAULT 0,
+    registros_encontrados INTEGER DEFAULT 0,
+    novos_registros INTEGER DEFAULT 0,
     webhooks_disparados INTEGER DEFAULT 0,
     error_message TEXT,
     executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -105,7 +95,28 @@ db.exec(`
   );
 `);
 
-// Função auxiliar para migrar colunas em bancos SQLite legados já criados
+// Configuracoes editaveis pelo frontend (fallback para variaveis de ambiente)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+`);
+
+// Tabela generica para dados capturados de cada modulo (orçamentos, fichário, cadastros, etc.)
+// Cada linha guarda o payload JSON original do WorkLab em `payload`.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS capture_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    module TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(module, record_id)
+  );
+`);
+
+// Utilitario para migrar colunas em bancos SQLite legados ja criados
 function addColumnIfNotExists(table: string, column: string, type: string) {
   try {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
@@ -114,11 +125,11 @@ function addColumnIfNotExists(table: string, column: string, type: string) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
     }
   } catch (e) {
-    // Coluna já existe ou erro ignorável em SQLite
+    // Coluna ja existe ou erro ignoravel em SQLite
   }
 }
 
-// Executar migrations defensivas
+// Migracoes defensivas para atendimentos
 addColumnIfNotExists('atendimentos', 'cpf', 'TEXT');
 addColumnIfNotExists('atendimentos', 'rg', 'TEXT');
 addColumnIfNotExists('atendimentos', 'datnasc', 'TEXT');
@@ -142,5 +153,10 @@ addColumnIfNotExists('exames', 'descricao', 'TEXT');
 addColumnIfNotExists('exames', 'valor', 'REAL DEFAULT 0');
 addColumnIfNotExists('exames', 'secao_sigla', 'TEXT');
 addColumnIfNotExists('exames', 'secao_descricao', 'TEXT');
+
+// Migracoes defensivas para sync_logs legados (renomeacao de colunas)
+addColumnIfNotExists('sync_logs', 'module', "TEXT DEFAULT 'atendimentos'");
+addColumnIfNotExists('sync_logs', 'registros_encontrados', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('sync_logs', 'novos_registros', 'INTEGER DEFAULT 0');
 
 export default db;

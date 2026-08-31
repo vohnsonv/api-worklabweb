@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Criar pasta de dados persistentes
-RUN mkdir -p /app/data/laudos
+RUN mkdir -p /app/data
 
 # Expor a porta da API REST e Dashboard
 EXPOSE 3000

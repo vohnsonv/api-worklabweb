@@ -1,382 +1,592 @@
-document.addEventListener('DOMContentLoaded', () => {
-  // Navegação por Abas
-  const navItems = document.querySelectorAll('.nav-item');
-  const tabViews = document.querySelectorAll('.tab-view');
+// Painel de integracao WorkLab Web - logica do frontend
+const state = {
+  modules: [],
+  currentView: 'overview'
+};
 
-  navItems.forEach(item => {
-    item.addEventListener('click', () => {
-      const targetTab = item.getAttribute('data-tab');
+document.addEventListener('DOMContentLoaded', init);
 
-      navItems.forEach(n => n.classList.remove('active'));
-      tabViews.forEach(v => v.classList.remove('active'));
-
-      item.classList.add('active');
-      const activeView = document.getElementById(targetTab);
-      if (activeView) activeView.classList.add('active');
-    });
+async function init() {
+  initTheme();
+  ensureApiKey();
+  bindNav();
+  bindGlobalButtons();
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeInfoModal();
   });
-
-  // Event Listeners Globais
-  document.getElementById('btn-refresh').addEventListener('click', loadAllData);
-  document.getElementById('btn-trigger-sync').addEventListener('click', triggerManualSync);
-  document.getElementById('btn-trigger-historical').addEventListener('click', triggerHistoricalSync);
-  document.getElementById('form-create-webhook').addEventListener('submit', createWebhook);
-
-  document.getElementById('search-atendimentos').addEventListener('input', loadFullAtendimentos);
-  document.getElementById('filter-status').addEventListener('change', loadFullAtendimentos);
-
-  // Carregar dados iniciais
-  loadAllData();
-
-  // Atualização periódica a cada 10 segundos
+  await loadCollectorStatus();
+  await loadModules();
+  await loadStats();
+  renderView('overview');
   setInterval(loadStats, 10000);
-});
+}
 
-// Utility para formatação de moeda em BRL
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getApiKey() {
+  return localStorage.getItem('wl_api_key') || '';
+}
+
+function ensureApiKey() {
+  if (localStorage.getItem('wl_api_key')) return;
+  const key = window.prompt('Informe a API key para acessar o painel WorkLab:');
+  if (key && key.trim()) {
+    localStorage.setItem('wl_api_key', key.trim());
+  }
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api/v1' + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': getApiKey(),
+      ...(opts.headers || {})
+    }
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('wl_api_key');
+  }
+  return res.json();
+}
+
+function esc(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function formatCurrency(val) {
   const num = parseFloat(val || 0);
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// Utility para formatação de data no fuso de Recife (America/Recife - UTC-3)
 function formatDate(dateStr) {
   if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleString('pt-BR', {
-      timeZone: 'America/Recife',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  } catch (e) {
-    return dateStr;
-  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  return d.toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// 1. Carregar Estatísticas Gerais
-async function loadStats() {
-  try {
-    const res = await fetch('/api/v1/stats');
-    const data = await res.json();
-
-    if (data.success && data.stats) {
-      const { totalAtendimentos, laudosConcluidos, webhooksAtivos, taxaSucessoWebhook, totalFaturado, mesesHistoricosConcluidos, ultimaSync } = data.stats;
-
-      document.getElementById('stat-total-atendimentos').textContent = totalAtendimentos.toLocaleString();
-      document.getElementById('stat-total-faturado').textContent = formatCurrency(totalFaturado);
-      document.getElementById('stat-laudos-concluidos').textContent = laudosConcluidos.toLocaleString();
-      document.getElementById('stat-webhooks-ativos').textContent = webhooksAtivos.toLocaleString();
-
-      if (ultimaSync) {
-        const dateStr = formatDate(ultimaSync.executed_at);
-        document.getElementById('txt-last-sync').textContent = `Última sync: ${dateStr} (${ultimaSync.status})`;
-      } else {
-        document.getElementById('txt-last-sync').textContent = 'Última sync: Nenhuma';
-      }
-    }
-  } catch (err) {
-    console.error('Erro ao carregar estatísticas:', err);
-  }
+function setTitle(title, subtitle) {
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-subtitle').textContent = subtitle || '';
 }
 
-// 2. Carregar Atendimentos Recentes (Tab Visão Geral)
+// ---------------------------------------------------------------------------
+// Navegacao
+// ---------------------------------------------------------------------------
+
+function bindNav() {
+  document.getElementById('nav-menu').addEventListener('click', (e) => {
+    const item = e.target.closest('.nav-item');
+    if (!item) return;
+    const view = item.getAttribute('data-view');
+    setActiveNav(item);
+    renderView(view);
+  });
+}
+
+function setActiveNav(activeItem) {
+  document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
+  if (activeItem) activeItem.classList.add('active');
+}
+
+async function loadModules() {
+  const data = await api('/modules');
+  if (!data.success) return;
+  state.modules = data.data;
+
+  const container = document.getElementById('nav-modules');
+  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>';
+  container.innerHTML = state.modules
+    .map((m) => `<div class="nav-item" data-view="module:${m.key}">${icon}<span>${esc(m.label)}</span></div>`)
+    .join('');
+}
+
+// ---------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------
+
+function renderView(view) {
+  state.currentView = view;
+  const content = document.getElementById('tab-content');
+
+  if (view === 'overview') renderOverview(content);
+  else if (view === 'atendimentos') renderAtendimentos(content);
+  else if (view === 'exames') renderExames(content);
+  else if (view === 'webhooks') renderWebhooks(content);
+  else if (view === 'logs') renderLogs(content);
+  else if (view === 'config') renderConfig(content);
+  else if (view.startsWith('module:')) renderModuleView(content, view.slice(7));
+}
+
+// --- Visao Geral ---
+function renderOverview(content) {
+  setTitle('Painel de Controle | API', 'Gerenciamento, monitoramento, ajustes, configurações');
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header"><h3>Atendimentos recentes</h3></div>
+      <div class="table-wrap"><table class="data-table" id="tbl-recent"></table></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-header"><h3>Registros por módulo</h3></div>
+      <div class="table-wrap"><table class="data-table" id="tbl-modules"></table></div>
+    </div>
+  `;
+  loadRecentAtendimentos();
+  loadModuleCounts();
+}
+
 async function loadRecentAtendimentos() {
-  try {
-    const res = await fetch('/api/v1/atendimentos?limit=6');
-    const data = await res.json();
+  const data = await api('/atendimentos?limit=8');
+  const tbody = document.getElementById('tbl-recent');
+  if (!tbody) return;
 
-    const tbody = document.getElementById('tbl-recent-atendimentos');
-    if (!data.success || !data.data || data.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Nenhum atendimento encontrado.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = data.data.map(item => `
-      <tr>
-        <td><strong>${item.protocolo}</strong></td>
-        <td>${item.paciente_nome}</td>
-        <td><code style="font-size: 0.75rem;">${item.cpf || '-'}</code></td>
-        <td>${item.data_cadastro || '-'}</td>
-        <td>${item.convenio || '-'}</td>
-        <td><strong style="color: var(--accent-cyan);">${formatCurrency(item.valor_final)}</strong></td>
-        <td>
-          <span class="badge ${item.status_laudo === 'CONCLUIDO' ? 'badge-success' : 'badge-warning'}">
-            ${item.status_laudo}
-          </span>
-        </td>
-        <td>
-          ${item.status_laudo === 'CONCLUIDO' ? `
-            <a href="/api/v1/atendimentos/${item.id}/pdf" target="_blank" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              📄 Ver PDF
-            </a>
-          ` : '<span style="color: var(--text-muted); font-size: 0.8rem;">Em análise</span>'}
-        </td>
-      </tr>
-    `).join('');
-  } catch (err) {
-    console.error('Erro ao carregar atendimentos recentes:', err);
+  if (!data.success || !data.data || data.data.length === 0) {
+    tbody.innerHTML = '<thead><tr><th>Nenhum atendimento</th></tr></thead>';
+    return;
   }
+
+  const headers = ['Protocolo', 'Paciente', 'CPF', 'Data', 'Convênio', 'Valor'];
+  const rows = data.data.map((a) => [
+    esc(a.protocolo), esc(a.paciente_nome), esc(a.cpf || '-'), esc(a.data_cadastro || '-'), esc(a.convenio || '-'), formatCurrency(a.valor_final)
+  ]);
+  tbody.innerHTML = buildTable(headers, rows);
 }
 
-// 3. Carregar Listagem Completa de Atendimentos (Tab Atendimentos & Exames)
-async function loadFullAtendimentos() {
-  try {
-    const search = document.getElementById('search-atendimentos').value;
-    const status = document.getElementById('filter-status').value;
+async function loadModuleCounts() {
+  const data = await api('/stats');
+  const tbody = document.getElementById('tbl-modules');
+  if (!tbody || !data.success) return;
 
-    const url = new URL('/api/v1/atendimentos', window.location.origin);
-    url.searchParams.append('limit', '50');
-    if (search) url.searchParams.append('search', search);
-    if (status) url.searchParams.append('status', status);
-
-    const res = await fetch(url);
-    const data = await res.json();
-
-    const tbody = document.getElementById('tbl-full-atendimentos');
-    if (!data.success || !data.data || data.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Nenhum registro encontrado.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = data.data.map(item => {
-      const examesList = Array.isArray(item.exames) ? item.exames.map(e => e.codigo_exame || e.nome_exame).join(', ') : '-';
-
-      return `
-        <tr>
-          <td><strong>${item.protocolo}</strong></td>
-          <td>
-            <div>${item.paciente_nome}</div>
-            <code style="font-size: 0.75rem; color: var(--text-muted);">${item.cpf ? 'CPF: ' + item.cpf : ''}</code>
-          </td>
-          <td>${item.data_cadastro || '-'}</td>
-          <td>
-            <div>${item.convenio || '-'}</div>
-            <small style="color: var(--text-muted);">${item.unidade || ''}</small>
-          </td>
-          <td><small>${item.atendente || '-'}</small></td>
-          <td><strong style="color: var(--accent-cyan);">${formatCurrency(item.valor_final)}</strong></td>
-          <td><small style="max-width: 180px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${examesList || '-'}</small></td>
-          <td>
-            <span class="badge ${item.status_laudo === 'CONCLUIDO' ? 'badge-success' : 'badge-warning'}">
-              ${item.status_laudo}
-            </span>
-          </td>
-          <td>
-            ${item.status_laudo === 'CONCLUIDO' ? `
-              <a href="/api/v1/atendimentos/${item.id}/pdf" target="_blank" class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
-                Download PDF
-              </a>
-            ` : '<span style="color: var(--text-muted); font-size: 0.8rem;">Aguardando laudo</span>'}
-          </td>
-        </tr>
-      `;
-    }).join('');
-  } catch (err) {
-    console.error('Erro ao carregar atendimentos completos:', err);
+  const counts = data.stats.moduleCounts || [];
+  if (counts.length === 0) {
+    tbody.innerHTML = '<thead><tr><th>Nenhum módulo sincronizado ainda</th></tr></thead>';
+    return;
   }
+  const headers = ['Módulo', 'Registros'];
+  const rows = counts.map((c) => [esc(c.module), c.c]);
+  tbody.innerHTML = buildTable(headers, rows);
 }
 
-// 4. Carregar Webhooks Cadastrados (Tab Webhooks)
+// --- Atendimentos ---
+function renderAtendimentos(content) {
+  setTitle('Atendimentos', 'Busca por protocolo, nome, CPF ou atendente');
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header">
+        <h3>Atendimentos</h3>
+        <input type="text" class="input-control" id="search-atendimentos" placeholder="Buscar...">
+      </div>
+      <div class="table-wrap"><table class="data-table" id="tbl-atendimentos"></table></div>
+    </div>
+  `;
+  document.getElementById('search-atendimentos').addEventListener('input', loadAtendimentos);
+  loadAtendimentos();
+}
+
+async function loadAtendimentos() {
+  const search = document.getElementById('search-atendimentos')?.value || '';
+  const data = await api('/atendimentos?limit=100' + (search ? `&search=${encodeURIComponent(search)}` : ''));
+  const table = document.getElementById('tbl-atendimentos');
+  if (!table || !data.success) return;
+
+  const headers = ['Protocolo', 'Paciente', 'CPF', 'Data', 'Unidade', 'Convênio', 'Atendente', 'Valor', 'Exames'];
+  const rows = (data.data || []).map((a) => {
+    const exames = Array.isArray(a.exames) ? a.exames.map((e) => e.codigo_exame || e.nome_exame).join(', ') : '-';
+    return [esc(a.protocolo), esc(a.paciente_nome), esc(a.cpf || '-'), esc(a.data_cadastro || '-'), esc(a.unidade || '-'), esc(a.convenio || '-'), esc(a.atendente || '-'), formatCurrency(a.valor_final), esc(exames)];
+  });
+  table.innerHTML = buildTable(headers, rows);
+}
+
+// --- Exames ---
+function renderExames(content) {
+  setTitle('Exames', 'Exames dos atendimentos');
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header">
+        <h3>Exames</h3>
+        <input type="text" class="input-control" id="search-exames" placeholder="Buscar...">
+      </div>
+      <div class="table-wrap"><table class="data-table" id="tbl-exames"></table></div>
+    </div>
+  `;
+  document.getElementById('search-exames').addEventListener('input', loadExames);
+  loadExames();
+}
+
+async function loadExames() {
+  const search = document.getElementById('search-exames')?.value || '';
+  const data = await api('/exames?limit=100' + (search ? `&search=${encodeURIComponent(search)}` : ''));
+  const table = document.getElementById('tbl-exames');
+  if (!table || !data.success) return;
+
+  const headers = ['Paciente', 'Protocolo', 'Código', 'Exame', 'Seção', 'Valor'];
+  const rows = (data.data || []).map((e) => [
+    esc(e.paciente_nome || '-'), esc(e.protocolo || '-'), esc(e.codigo_exame || '-'), esc(e.nome_exame), esc(e.secao_sigla || '-'), formatCurrency(e.valor)
+  ]);
+  table.innerHTML = buildTable(headers, rows);
+}
+
+// --- Modulo generico ---
+function renderModuleView(content, key) {
+  const mod = state.modules.find((m) => m.key === key);
+  if (!mod) { content.innerHTML = '<p>Módulo não encontrado.</p>'; return; }
+
+  setTitle(mod.label, `Dados capturados do WorkLab · intervalo ${mod.intervalMin} min`);
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header">
+        <h3>${esc(mod.label)}</h3>
+        <div class="panel-actions">
+          <button class="btn btn-ghost btn-info" onclick="openInfoModal('${esc(key)}')" title="Como é capturado" aria-label="Como é capturado">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </button>
+          <span class="muted">Intervalo: ${mod.intervalMin} min</span>
+          <button class="btn btn-secondary" onclick="syncModule('${esc(key)}')">Sincronizar agora</button>
+          <a class="btn btn-secondary" href="/api/v1/export/${esc(key)}.csv?key=${encodeURIComponent(getApiKey())}" target="_blank">Exportar CSV</a>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="data-table" id="tbl-module"></table></div>
+    </div>
+  `;
+  loadModuleData(key);
+}
+
+async function loadModuleData(key) {
+  const table = document.getElementById('tbl-module');
+  if (!table) return;
+  table.innerHTML = '<thead><tr><th>Carregando...</th></tr></thead>';
+
+  const data = await api(`/data/${key}?limit=200`);
+  if (!data.success || !data.data || data.data.length === 0) {
+    table.innerHTML = '<thead><tr><th>Sem registros capturados ainda.</th></tr></thead>';
+    return;
+  }
+
+  const columns = collectColumns(data.data);
+  const headers = columns.map((c) => esc(c));
+  const rows = data.data.map((row) => columns.map((c) => {
+    const v = row[c];
+    return typeof v === 'object' ? esc(JSON.stringify(v)) : esc(v);
+  }));
+
+  table.innerHTML = buildTable(headers, rows, true);
+}
+
+function collectColumns(rows) {
+  const set = new Set();
+  const preferred = ['record_id', 'synced_at'];
+  for (const r of rows) {
+    for (const k of Object.keys(r)) {
+      if (!k.startsWith('__')) set.add(k);
+    }
+  }
+  const all = Array.from(set);
+  return preferred.filter((p) => all.includes(p)).concat(all.filter((c) => !preferred.includes(c))).slice(0, 20);
+}
+
+async function syncModule(key) {
+  const data = await api(`/sync/module/${key}`, { method: 'POST' });
+  alert(data.message || 'Sincronização iniciada.');
+  setTimeout(() => loadModuleData(key), 3000);
+}
+
+// --- Modal de detalhes de captura ---
+function openInfoModal(key) {
+  const mod = state.modules.find((m) => m.key === key);
+  const d = mod && mod.detail;
+  if (!d) return;
+
+  const body = document.getElementById('info-modal-body');
+  body.innerHTML = `
+    <h2 class="info-title">${esc(d.label)}</h2>
+    <p class="info-desc">${esc(d.description)}</p>
+    <div class="info-grid">
+      <div class="info-row"><span class="info-key">Fonte / origem</span><span class="info-val">${esc(d.source)}</span></div>
+      <div class="info-row"><span class="info-key">Tipo de captura</span><span class="info-val">${esc(d.kindLabel)}</span></div>
+      <div class="info-row"><span class="info-key">Como funciona</span><span class="info-val">${esc(d.kindDescription)}</span></div>
+      <div class="info-row"><span class="info-key">Requisição</span><span class="info-val"><code>${esc(d.requestFormat)}</code></span></div>
+      <div class="info-row"><span class="info-key">Identificação</span><span class="info-val">${esc(d.identifier)}</span></div>
+      <div class="info-row"><span class="info-key">Armazenamento</span><span class="info-val">${esc(d.storage)}</span></div>
+      <div class="info-row"><span class="info-key">Frequência</span><span class="info-val">${esc(d.interval)}</span></div>
+      <div class="info-row"><span class="info-key">Configuração</span><span class="info-val"><code>${esc(d.intervalKey)}</code></span></div>
+    </div>
+    ${d.notes ? `<p class="info-notes">${esc(d.notes)}</p>` : ''}
+  `;
+  document.getElementById('info-modal').classList.add('open');
+}
+
+function closeInfoModal() {
+  document.getElementById('info-modal').classList.remove('open');
+}
+
+// --- Webhooks ---
+function renderWebhooks(content) {
+  setTitle('Webhooks', 'Endpoints que recebem eventos de novo atendimento');
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header"><h3>Cadastrar webhook</h3></div>
+      <form id="form-webhook">
+        <div class="form-row">
+          <div class="form-group"><label>URL</label><input class="input-control" id="wh-url" type="url" required></div>
+          <div class="form-group"><label>Descrição</label><input class="input-control" id="wh-desc"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Eventos</label><input class="input-control" id="wh-events" value="novo_atendimento"></div>
+          <div class="form-group"><label>Segredo HMAC</label><input class="input-control" id="wh-secret" placeholder="opcional"></div>
+        </div>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </form>
+    </div>
+    <div class="panel-card">
+      <div class="panel-header"><h3>Webhooks ativos</h3></div>
+      <div class="table-wrap"><table class="data-table" id="tbl-webhooks"></table></div>
+    </div>
+  `;
+  document.getElementById('form-webhook').addEventListener('submit', createWebhook);
+  loadWebhooks();
+}
+
 async function loadWebhooks() {
-  try {
-    const res = await fetch('/api/v1/webhooks');
-    const data = await res.json();
-
-    const tbody = document.getElementById('tbl-webhooks');
-    if (!data.success || !data.data || data.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhum webhook cadastrado.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = data.data.map(wh => `
-      <tr>
-        <td>#${wh.id}</td>
-        <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-          <a href="${wh.url}" target="_blank" style="color: var(--accent-cyan); text-decoration: none;">${wh.url}</a>
-        </td>
-        <td>${wh.description || '-'}</td>
-        <td><span class="badge badge-warning">${wh.events}</span></td>
-        <td><code>${wh.secret}</code></td>
-        <td>
-          <button onclick="testWebhook(${wh.id})" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin-right: 0.25rem;">
-            ⚡ Testar
-          </button>
-          <button onclick="deleteWebhook(${wh.id})" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger);">
-            🗑 Excluir
-          </button>
-        </td>
-      </tr>
-    `).join('');
-  } catch (err) {
-    console.error('Erro ao carregar webhooks:', err);
-  }
+  const data = await api('/webhooks');
+  const table = document.getElementById('tbl-webhooks');
+  if (!table || !data.success) return;
+  const headers = ['ID', 'URL', 'Descrição', 'Eventos', 'Ações'];
+  const rows = (data.data || []).map((w) => [
+    '#' + w.id,
+    esc(w.url),
+    esc(w.description || '-'),
+    esc(w.events),
+    `<button class="btn btn-secondary btn-sm" onclick="testWebhook(${w.id})">Testar</button>
+     <button class="btn btn-secondary btn-sm danger" onclick="deleteWebhook(${w.id})">Excluir</button>`
+  ]);
+  table.innerHTML = buildTable(headers, rows, true);
 }
 
-// 5. Cadastrar Novo Webhook
 async function createWebhook(e) {
   e.preventDefault();
-
-  const url = document.getElementById('webhook-url').value;
-  const description = document.getElementById('webhook-desc').value;
-  const events = document.getElementById('webhook-events').value;
-  const secret = document.getElementById('webhook-secret').value;
-
-  try {
-    const res = await fetch('/api/v1/webhooks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, description, events, secret })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      alert('Webhook cadastrado com sucesso!');
-      document.getElementById('form-create-webhook').reset();
-      loadWebhooks();
-      loadStats();
-    } else {
-      alert('Erro ao cadastrar webhook: ' + data.error);
-    }
-  } catch (err) {
-    alert('Erro de conexão ao cadastrar webhook.');
-  }
+  const body = {
+    url: document.getElementById('wh-url').value,
+    description: document.getElementById('wh-desc').value,
+    events: document.getElementById('wh-events').value,
+    secret: document.getElementById('wh-secret').value
+  };
+  const data = await api('/webhooks', { method: 'POST', body: JSON.stringify(body) });
+  alert(data.success ? 'Webhook salvo.' : 'Erro: ' + data.error);
+  if (data.success) { loadWebhooks(); loadStats(); }
 }
 
 async function testWebhook(id) {
-  try {
-    const res = await fetch(`/api/v1/webhooks/${id}/test`, { method: 'POST' });
-    const data = await res.json();
-    alert(data.message);
-    loadLogs();
-  } catch (err) {
-    alert('Erro ao testar webhook.');
-  }
+  const data = await api(`/webhooks/${id}/test`, { method: 'POST' });
+  alert(data.message);
 }
 
 async function deleteWebhook(id) {
-  if (!confirm('Deseja realmente excluir este webhook?')) return;
-
-  try {
-    const res = await fetch(`/api/v1/webhooks/${id}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-      loadWebhooks();
-      loadStats();
-    }
-  } catch (err) {
-    alert('Erro ao excluir webhook.');
-  }
-}
-
-// 6. Carregar Logs de Auditoria (Tab Logs)
-async function loadLogs() {
-  try {
-    const resWh = await fetch('/api/v1/logs/webhook');
-    const dataWh = await resWh.json();
-    const tbodyWh = document.getElementById('tbl-webhook-logs');
-
-    if (dataWh.success && dataWh.data && dataWh.data.length > 0) {
-      tbodyWh.innerHTML = dataWh.data.map(log => `
-        <tr>
-          <td>${formatDate(log.executed_at)}</td>
-          <td><span class="badge badge-warning">${log.event}</span></td>
-          <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${log.url || 'Webhook Excluído'}</td>
-          <td><code>${log.status_code || 500}</code></td>
-          <td>${log.attempt_count}</td>
-          <td>
-            <span class="badge ${log.success ? 'badge-success' : 'badge-danger'}">
-              ${log.success ? 'SUCESSO' : 'FALHA'}
-            </span>
-          </td>
-        </tr>
-      `).join('');
-    } else {
-      tbodyWh.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhum log de webhook registrado.</td></tr>';
-    }
-
-    const resSync = await fetch('/api/v1/logs/sync');
-    const dataSync = await resSync.json();
-    const tbodySync = document.getElementById('tbl-sync-logs');
-
-    if (dataSync.success && dataSync.data && dataSync.data.length > 0) {
-      tbodySync.innerHTML = dataSync.data.map(log => `
-        <tr>
-          <td>${formatDate(log.executed_at)}</td>
-          <td>
-            <span class="badge ${log.status === 'SUCCESS' ? 'badge-success' : 'badge-danger'}">
-              ${log.status}
-            </span>
-          </td>
-          <td>${log.atendimentos_encontrados}</td>
-          <td>${log.novos_atendimentos}</td>
-          <td>${log.laudos_baixados}</td>
-          <td>${log.webhooks_disparados}</td>
-          <td>${log.error_message || '-'}</td>
-        </tr>
-      `).join('');
-    } else {
-      tbodySync.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Nenhum log de sincronização registrado.</td></tr>';
-    }
-  } catch (err) {
-    console.error('Erro ao carregar logs:', err);
-  }
-}
-
-// 7. Sincronização Manual
-async function triggerManualSync() {
-  const btn = document.getElementById('btn-trigger-sync');
-  btn.disabled = true;
-  btn.textContent = 'Sincronizando...';
-
-  try {
-    const res = await fetch('/api/v1/sync/trigger', { method: 'POST' });
-    const data = await res.json();
-    alert(data.message);
-
-    setTimeout(() => {
-      loadAllData();
-      btn.disabled = false;
-      btn.innerHTML = '⚡ Sincronizar Agora';
-    }, 2000);
-  } catch (err) {
-    alert('Erro ao disparar sincronização manual.');
-    btn.disabled = false;
-  }
-}
-
-// 8. Carga Histórica Retroativa (2020-2026)
-async function triggerHistoricalSync() {
-  if (!confirm('Deseja iniciar a Carga Histórica Retroativa (2020 a 2026)? Este processo executará a varredura em segundo plano no servidor.')) return;
-
-  const btn = document.getElementById('btn-trigger-historical');
-  btn.disabled = true;
-  btn.textContent = 'Processando 2020-2026...';
-
-  try {
-    const res = await fetch('/api/v1/sync/historical', { method: 'POST' });
-    const data = await res.json();
-    alert(data.message);
-
-    setTimeout(() => {
-      loadAllData();
-      btn.disabled = false;
-      btn.textContent = '⏳ Carga Histórica (2020-2026)';
-    }, 2000);
-  } catch (err) {
-    alert('Erro ao disparar carga histórica.');
-    btn.disabled = false;
-  }
-}
-
-function loadAllData() {
-  loadStats();
-  loadRecentAtendimentos();
-  loadFullAtendimentos();
+  if (!confirm('Excluir este webhook?')) return;
+  await api(`/webhooks/${id}`, { method: 'DELETE' });
   loadWebhooks();
+}
+
+// --- Logs ---
+function renderLogs(content) {
+  setTitle('Logs', 'Histórico de sincronizações e disparos');
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header"><h3>Sincronizações</h3></div>
+      <div class="table-wrap"><table class="data-table" id="tbl-sync-logs"></table></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-header"><h3>Disparos de webhook</h3></div>
+      <div class="table-wrap"><table class="data-table" id="tbl-webhook-logs"></table></div>
+    </div>
+  `;
   loadLogs();
+}
+
+async function loadLogs() {
+  const sync = await api('/logs/sync');
+  const t1 = document.getElementById('tbl-sync-logs');
+  if (t1 && sync.success) {
+    const headers = ['Data', 'Módulo', 'Status', 'Encontrados', 'Novos', 'Erro'];
+    const rows = (sync.data || []).map((l) => [formatDate(l.executed_at), esc(l.module || 'atendimentos'), esc(l.status), l.registros_encontrados, l.novos_registros, esc(l.error_message || '-')]);
+    t1.innerHTML = buildTable(headers, rows);
+  }
+
+  const wh = await api('/logs/webhook');
+  const t2 = document.getElementById('tbl-webhook-logs');
+  if (t2 && wh.success) {
+    const headers = ['Data', 'Evento', 'Status', 'Tentativas'];
+    const rows = (wh.data || []).map((l) => [formatDate(l.executed_at), esc(l.event), l.success ? 'OK' : 'FALHA', l.attempt_count]);
+    t2.innerHTML = buildTable(headers, rows);
+  }
+}
+
+// --- Configuracoes ---
+function renderConfig(content) {
+  setTitle('Configurações', 'Credenciais do WorkLab e intervalos de captura');
+  content.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-header"><h3>Conexão com o WorkLab</h3></div>
+      <div class="form-row">
+        <div class="form-group"><label>ID do laboratório</label><input class="input-control" id="cfg-client"></div>
+        <div class="form-group"><label>Usuário</label><input class="input-control" id="cfg-user"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Senha</label><input class="input-control" id="cfg-pass" type="password" placeholder="********"></div>
+        <div class="form-group"><label>URL de login</label><input class="input-control" id="cfg-url"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Intervalo de sync (min)</label><input class="input-control" id="cfg-interval" type="number"></div>
+        <div class="form-group"><label>Janela de captura (meses)</label><input class="input-control" id="cfg-window" type="number"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveConfig()">Salvar configurações</button>
+    </div>
+    <div class="panel-card">
+      <div class="panel-header"><h3>Intervalo por módulo (minutos)</h3></div>
+      <div class="table-wrap"><table class="data-table" id="tbl-module-intervals"></table></div>
+      <button class="btn btn-primary" onclick="saveModuleIntervals()">Salvar intervalos</button>
+    </div>
+  `;
+  loadConfig();
+}
+
+async function loadConfig() {
+  const data = await api('/settings');
+  if (!data.success) return;
+  const s = data.data;
+  document.getElementById('cfg-client').value = s.worklab_client_id || '';
+  document.getElementById('cfg-user').value = s.worklab_user || '';
+  document.getElementById('cfg-pass').value = '';
+  document.getElementById('cfg-url').value = s.worklab_url || '';
+  document.getElementById('cfg-interval').value = s.sync_interval_minutes || '1';
+  document.getElementById('cfg-window').value = s.sync_window_months || '5';
+
+  const headers = ['Módulo', 'Intervalo (min)'];
+  const rows = state.modules.map((m) => [
+    esc(m.label),
+    `<input type="number" class="input-control" id="iv-${esc(m.key)}" value="${m.intervalMin}" min="0">`
+  ]);
+  document.getElementById('tbl-module-intervals').innerHTML = buildTable(headers, rows, true);
+}
+
+async function saveConfig() {
+  const body = {
+    worklab_client_id: document.getElementById('cfg-client').value,
+    worklab_user: document.getElementById('cfg-user').value,
+    worklab_url: document.getElementById('cfg-url').value,
+    sync_interval_minutes: document.getElementById('cfg-interval').value,
+    sync_window_months: document.getElementById('cfg-window').value
+  };
+  const pass = document.getElementById('cfg-pass').value;
+  if (pass && pass !== '********') body.worklab_password = pass;
+
+  const data = await api('/settings', { method: 'PUT', body: JSON.stringify(body) });
+  alert(data.success ? 'Configurações salvas.' : 'Erro: ' + data.error);
+}
+
+async function saveModuleIntervals() {
+  const body = {};
+  state.modules.forEach((m) => {
+    const el = document.getElementById('iv-' + m.key);
+    if (el) body[`module.${m.key}.interval_minutes`] = el.value;
+  });
+  const data = await api('/settings', { method: 'PUT', body: JSON.stringify(body) });
+  alert(data.success ? 'Intervalos salvos.' : 'Erro: ' + data.error);
+}
+
+// ---------------------------------------------------------------------------
+// Botoes globais
+// ---------------------------------------------------------------------------
+
+function bindGlobalButtons() {
+  document.getElementById('btn-refresh').addEventListener('click', () => { loadStats(); renderView(state.currentView); });
+  document.getElementById('btn-trigger-sync').addEventListener('click', triggerSync);
+  document.getElementById('btn-trigger-historical').addEventListener('click', triggerHistorical);
+  document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+  document.getElementById('collector-toggle').addEventListener('change', toggleCollector);
+}
+
+// ---------------------------------------------------------------------------
+// Coletor (ligar/desligar)
+// ---------------------------------------------------------------------------
+
+async function loadCollectorStatus() {
+  const data = await api('/collector/status');
+  applyCollectorState(data && data.enabled !== false);
+}
+
+function applyCollectorState(enabled) {
+  const toggle = document.getElementById('collector-toggle');
+  const label = document.getElementById('collector-status-label');
+  const dot = document.getElementById('collector-dot');
+  const card = dot ? dot.closest('.collector-status-card') : null;
+
+  if (toggle) toggle.checked = enabled;
+  if (label) label.textContent = enabled ? 'Coletor ativo' : 'Coletor desligado';
+  if (dot) dot.classList.toggle('off', !enabled);
+  if (card) card.classList.toggle('off', !enabled);
+}
+
+async function toggleCollector() {
+  const data = await api('/collector/toggle', { method: 'POST' });
+  applyCollectorState(data && data.enabled !== false);
+}
+
+// Tema claro/escuro (persistido no navegador)
+function initTheme() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  applyTheme(saved);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(current);
+  localStorage.setItem('theme', current);
+}
+
+async function triggerSync() {
+  const data = await api('/sync/trigger', { method: 'POST' });
+  alert(data.message);
+  setTimeout(loadStats, 3000);
+}
+
+async function triggerHistorical() {
+  if (!confirm('Iniciar carga histórica retroativa (2020 até hoje)?')) return;
+  const data = await api('/sync/historical', { method: 'POST' });
+  alert(data.message);
+}
+
+async function loadStats() {
+  const data = await api('/stats');
+  if (!data.success || !data.stats) return;
+  const s = data.stats;
+  document.getElementById('stat-atendimentos').textContent = (s.totalAtendimentos || 0).toLocaleString('pt-BR');
+  document.getElementById('stat-exames').textContent = (s.totalExames || 0).toLocaleString('pt-BR');
+  document.getElementById('stat-faturado').textContent = formatCurrency(s.totalFaturado);
+  document.getElementById('stat-webhooks').textContent = s.webhooksAtivos || 0;
+
+  if (s.ultimaSync) {
+    document.getElementById('txt-last-sync').textContent = `Última sync: ${formatDate(s.ultimaSync.executed_at)} (${s.ultimaSync.status})`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Construcao de tabelas
+// ---------------------------------------------------------------------------
+
+function buildTable(headers, rows, rawActions = false) {
+  const thead = `<thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  return thead + tbody;
 }
