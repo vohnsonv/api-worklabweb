@@ -81,7 +81,7 @@ export class WorklabAuth {
         'Content-Type': 'application/json',
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
       },
-      timeout: 30000
+      timeout: 120000
     });
   }
 
@@ -95,7 +95,7 @@ export class WorklabAuth {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
         'X-Requested-With': 'XMLHttpRequest'
       },
-      timeout: 30000
+      timeout: 120000
     });
   }
 }

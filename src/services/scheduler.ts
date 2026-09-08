@@ -47,8 +47,8 @@ export class Scheduler {
   }
 
   // Dispara um modulo imediatamente (usado pelo botao do frontend).
-  static async triggerNow(key: string): Promise<void> {
+  static async triggerNow(key: string) {
     this.lastRun.set(key, Date.now());
-    await WorklabCollector.syncModule(key);
+    return await WorklabCollector.syncModule(key);
   }
 }

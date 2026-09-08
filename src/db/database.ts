@@ -148,11 +148,68 @@ addColumnIfNotExists('atendimentos', 'situacao', 'TEXT');
 addColumnIfNotExists('atendimentos', 'medicamentos', 'TEXT');
 addColumnIfNotExists('atendimentos', 'observacao', 'TEXT');
 
+// Campos completos do atendimento vindos da API (antes descartados)
+addColumnIfNotExists('atendimentos', 'medicoid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'convenioid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'unidadeid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'localid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'ficharioid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'usuarioid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'crm', 'TEXT');
+addColumnIfNotExists('atendimentos', 'guia', 'TEXT');
+addColumnIfNotExists('atendimentos', 'responsavel', 'TEXT');
+addColumnIfNotExists('atendimentos', 'diagnostico', 'TEXT');
+addColumnIfNotExists('atendimentos', 'cid', 'TEXT');
+addColumnIfNotExists('atendimentos', 'senha_autorizacao', 'TEXT');
+addColumnIfNotExists('atendimentos', 'matricula', 'TEXT');
+addColumnIfNotExists('atendimentos', 'plano', 'TEXT');
+addColumnIfNotExists('atendimentos', 'validade_cartao', 'TEXT');
+addColumnIfNotExists('atendimentos', 'data_faturamento', 'TEXT');
+addColumnIfNotExists('atendimentos', 'hora_recepcao', 'TEXT');
+addColumnIfNotExists('atendimentos', 'urgencia', 'TEXT');
+addColumnIfNotExists('atendimentos', 'coletador', 'TEXT');
+addColumnIfNotExists('atendimentos', 'celular', 'TEXT');
+addColumnIfNotExists('atendimentos', 'cep', 'TEXT');
+addColumnIfNotExists('atendimentos', 'empresa', 'TEXT');
+addColumnIfNotExists('atendimentos', 'local', 'TEXT');
+addColumnIfNotExists('atendimentos', 'idade_completa', 'TEXT');
+addColumnIfNotExists('atendimentos', 'idade_anos', 'TEXT');
+addColumnIfNotExists('atendimentos', 'total_pago', 'REAL DEFAULT 0');
+addColumnIfNotExists('atendimentos', 'total_ch', 'REAL DEFAULT 0');
+addColumnIfNotExists('atendimentos', 'formas_pagamento_resumo', 'TEXT');
+addColumnIfNotExists('atendimentos', 'sit', 'TEXT');
+// Payload bruto completo da API (garante que nenhum campo se perca)
+addColumnIfNotExists('atendimentos', 'payload', 'TEXT');
+
 addColumnIfNotExists('exames', 'exame_id', 'INTEGER');
 addColumnIfNotExists('exames', 'descricao', 'TEXT');
 addColumnIfNotExists('exames', 'valor', 'REAL DEFAULT 0');
 addColumnIfNotExists('exames', 'secao_sigla', 'TEXT');
 addColumnIfNotExists('exames', 'secao_descricao', 'TEXT');
+// Identificador do exame do paciente (necessário para capturar o laudo) + campos completos
+addColumnIfNotExists('exames', 'paciente_exame_id', 'INTEGER');
+addColumnIfNotExists('exames', 'flag', 'TEXT');
+addColumnIfNotExists('exames', 'codigo_amb', 'TEXT');
+addColumnIfNotExists('exames', 'valor_ch', 'REAL DEFAULT 0');
+addColumnIfNotExists('exames', 'pgtoato', 'TEXT');
+addColumnIfNotExists('exames', 'm1', 'TEXT');
+addColumnIfNotExists('exames', 'm2', 'TEXT');
+addColumnIfNotExists('exames', 'm3', 'TEXT');
+addColumnIfNotExists('exames', 'payload', 'TEXT');
+addColumnIfNotExists('exames', 'laudo_status', "TEXT DEFAULT 'NAO_CAPTURADO'");
+addColumnIfNotExists('exames', 'laudo_capturado_em', 'TEXT');
+
+try {
+  db.exec('CREATE INDEX IF NOT EXISTS idx_exames_paciente_exame ON exames(paciente_exame_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_capture_module ON capture_records(module)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_atendimentos_worklab ON atendimentos(worklab_id)');
+} catch {
+  // índices já existentes
+}
+
+// Métricas adicionais nos logs de sincronização
+addColumnIfNotExists('sync_logs', 'registros_atualizados', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('sync_logs', 'duracao_ms', 'INTEGER DEFAULT 0');
 
 // Migracoes defensivas para sync_logs legados (renomeacao de colunas)
 addColumnIfNotExists('sync_logs', 'module', "TEXT DEFAULT 'atendimentos'");

@@ -277,10 +277,11 @@ router.get('/data/:module', (req: Request, res: Response) => {
 router.post('/sync/module/:key', async (req: Request, res: Response) => {
   try {
     const key = String(req.params.key);
-    Scheduler.triggerNow(key).catch((err) => console.error(`[api] sync ${key} falhou:`, err.message));
-    res.json({ success: true, message: `Sincronização do módulo "${key}" iniciada.` });
+    const resultado = await Scheduler.triggerNow(key);
+    res.json({ success: true, message: `Sincronização do módulo "${key}" concluída.`, resultado });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const chave = String((req.params as { key?: string }).key || '');
+    res.status(500).json({ success: false, error: err.message, message: `Falha ao sincronizar "${chave}".` });
   }
 });
 
@@ -377,6 +378,98 @@ router.post('/webhooks/:id/test', async (req: Request, res: Response) => {
 
     const success = await WebhookDispatcher.sendSingleWebhook(webhook, 'test_ping', JSON.stringify(testPayload));
     res.json({ success, message: success ? 'Webhook de teste disparado com sucesso' : 'Falha ao entregar o webhook de teste' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Laudos / Resultados
+// ---------------------------------------------------------------------------
+
+// Status da captura de laudos (contagem de pendentes/capturados)
+router.get('/laudos/status', (req: Request, res: Response) => {
+  try {
+    const capturados = (db.prepare("SELECT COUNT(*) as c FROM exames WHERE laudo_status = 'CAPTURADO'").get() as any).c;
+    const falhas = (db.prepare("SELECT COUNT(*) as c FROM exames WHERE laudo_status = 'FALHOU'").get() as any).c;
+    const pendentes = (db.prepare("SELECT COUNT(*) as c FROM exames WHERE laudo_status = 'NAO_CAPTURADO' AND paciente_exame_id IS NOT NULL").get() as any).c;
+    res.json({ success: true, data: { capturados, falhas, pendentes, total: capturados + falhas + pendentes } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Candidatos por protocolo/OS (para captura sob demanda na interface)
+router.get('/laudos/candidatos', (req: Request, res: Response) => {
+  try {
+    const busca = String(req.query.q || '').trim();
+    const buscaNum = String(req.query.codigo || '').trim();
+    let linhas: any[] = [];
+    if (busca || buscaNum) {
+      const termo = `%${busca || buscaNum}%`;
+      linhas = db
+        .prepare(`
+          SELECT e.paciente_exame_id, e.codigo_exame, e.nome_exame, e.laudo_status, e.laudo_capturado_em,
+                 a.protocolo, a.paciente_nome, json_extract(a.payload, '$.pacienteid') AS paciente_id
+          FROM exames e
+          JOIN atendimentos a ON e.atendimento_id = a.id
+          WHERE a.protocolo LIKE ? OR a.paciente_nome LIKE ? OR e.codigo_exame LIKE ?
+          ORDER BY a.data_cadastro DESC
+          LIMIT 200
+        `)
+        .all(termo, termo, termo) as any[];
+    }
+    res.json({ success: true, data: linhas });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Laudo de um exame específico (já capturado, da tabela capture_records)
+router.get('/laudos/:pacienteExameId', (req: Request, res: Response) => {
+  try {
+    const { pacienteExameId } = req.params;
+    const row = db.prepare("SELECT record_id, payload, synced_at FROM capture_records WHERE module = 'laudos' AND record_id = ?").get(String(pacienteExameId)) as any;
+    if (!row) {
+      return res.status(404).json({ success: false, error: 'Laudo ainda não capturado para este exame.' });
+    }
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(row.payload);
+    } catch {
+      parsed = { raw: row.payload };
+    }
+    res.json({ success: true, data: { record_id: row.record_id, synced_at: row.synced_at, ...parsed } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Captura sob demanda (síncrona) do laudo de um exame
+router.post('/laudos/capture', async (req: Request, res: Response) => {
+  try {
+    const { pacienteId, pacienteExameId } = req.body || {};
+    if (!pacienteId || !pacienteExameId) {
+      return res.status(400).json({ success: false, error: 'Parâmetros pacienteId e pacienteExameId são obrigatórios.' });
+    }
+    const resultado = await WorklabCollector.capturarLaudoExame(pacienteId, pacienteExameId);
+    if (!resultado.ok) {
+      return res.status(502).json({ success: false, error: resultado.erro || 'Falha ao capturar laudo.' });
+    }
+    res.json({ success: true, message: 'Laudo capturado com sucesso.', data: resultado });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Captura em lote (assíncrona) dos próximos N exames sem laudo
+router.post('/laudos/batch', async (req: Request, res: Response) => {
+  try {
+    const limite = Math.min(Number(req.body?.limite || 300), 2000);
+    WorklabCollector.capturarLaudosLote(limite)
+      .then((r) => console.log('[laudos] lote concluído:', JSON.stringify(r)))
+      .catch((err) => console.error('[laudos] lote falhou:', err.message));
+    res.json({ success: true, message: `Captura em lote iniciada (próximos ${limite} exames).` });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

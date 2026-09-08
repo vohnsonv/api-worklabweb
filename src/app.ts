@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { ENV } from './config/env';
 import apiRoutes from './routes/api';
+import db from './db/database';
 import { WorklabCollector } from './services/worklabCollector';
 import { Scheduler } from './services/scheduler';
 import { SettingsService } from './services/settingsService';
@@ -53,5 +54,19 @@ app.listen(ENV.PORT, () => {
   // Agendador dos modulos de captura (orçamentos, fichario, cadastros, etc.)
   Scheduler.start();
 });
+
+// Encerramento limpo: fecha o SQLite antes do teardown do Node (evita assert do
+// better-sqlite3 no exit) e derruba o agendador.
+function shutdown() {
+  try {
+    Scheduler.stop();
+  } catch { /* noop */ }
+  try {
+    db.close();
+  } catch { /* noop */ }
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 export default app;

@@ -7,3 +7,5 @@ data/
 *.db-shm
 *.db-wal
 .DS_Store
+_discovery*.mjs
+_probe*.mjs
