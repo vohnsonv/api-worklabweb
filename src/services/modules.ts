@@ -103,7 +103,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'formas_pagamento', label: 'Formas de Pagamento', kind: 'jqgrid', endpoint: 'formasPagamentos.php', defaultIntervalMin: 1440, description: 'Formas de pagamento aceitas pelo laboratório.' },
   { key: 'categorias', label: 'Categorias', kind: 'jqgrid', endpoint: 'categorias.php', defaultIntervalMin: 1440, description: 'Categorias de classificação usadas no cadastro.' },
   { key: 'portadores', label: 'Portadores', kind: 'jqgrid', endpoint: 'portadores.php', defaultIntervalMin: 1440, description: 'Portadores/contas usados no financeiro.' },
-  { key: 'exames_apoio', label: 'Exames de Apoio', kind: 'jqgrid', endpoint: 'examesApoio.php', defaultIntervalMin: 1440, description: 'Exames enviados a laboratórios de apoio e seus destinos.' },
+  { key: 'exames_apoio', label: 'Exames de Apoio', kind: 'jqgrid', endpoint: 'examesApoio.php', defaultIntervalMin: 1440, description: 'Exames enviados a laboratórios de apoio e destinos (tela interativa por destino/seção; sem endpoint direto).' },
   {
     key: 'info_complementar',
     label: 'Info Complementar',

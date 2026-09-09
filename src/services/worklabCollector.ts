@@ -343,8 +343,9 @@ export class WorklabCollector {
 
       if (module.kind === 'jqgrid') {
         rows = await fetchJqGrid(webClient, module.endpoint);
-        // Fallback: algumas telas renderizam a tabela no HTML (sem grid JSON)
-        if (rows.length === 0) {
+        // Fallback: algumas telas renderizam a tabela no HTML (sem grid JSON).
+        // examesApoio é 100% interativa (seleção destino/seção) — sem fallback p/ evitar ruído.
+        if (rows.length === 0 && module.key !== 'exames_apoio') {
           const response = await webClient.get(`/${module.endpoint}`, { responseType: 'text' });
           rows = tabelaParaRegistros(String(response.data || ''));
         }
