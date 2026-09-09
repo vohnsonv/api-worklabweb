@@ -292,3 +292,42 @@ export async function fetchApiReport(
   }
   return [];
 }
+
+// Lista simples da API REST (GET retorna array de registros).
+export async function fetchApiList(apiClient: AxiosInstance, apiPath: string): Promise<Record<string, any>[]> {
+  const response = await apiClient.get(apiPath);
+  const data = response.data;
+  if (Array.isArray(data)) return data as Record<string, any>[];
+  if (data && Array.isArray(data.data)) return data.data as Record<string, any>[];
+  if (data && Array.isArray(data.usuarios)) return data.usuarios as Record<string, any>[];
+  if (data && Array.isArray(data.rows)) return data.rows as Record<string, any>[];
+  return [];
+}
+
+// Grid paginado da API REST (padrão Laravel: { current_page, last_page, data, total }).
+export async function fetchApiGrid(
+  apiClient: AxiosInstance,
+  apiPath: string,
+  params: Record<string, string>,
+  perPage = 500,
+): Promise<Record<string, any>[]> {
+  const todas: Record<string, any>[] = [];
+  let page = 1;
+  let lastPage = 1;
+
+  do {
+    const response = await apiClient.get(apiPath, {
+      params: { ...params, page, perPage },
+    });
+    const data = response.data;
+    const linhas = Array.isArray(data?.data) ? (data.data as Record<string, any>[]) : [];
+    todas.push(...linhas);
+
+    lastPage = Number(data?.last_page ?? data?.lastPage ?? page);
+    if (linhas.length === 0) break;
+    if (page >= lastPage) break;
+    page += 1;
+  } while (page <= 500);
+
+  return todas;
+}

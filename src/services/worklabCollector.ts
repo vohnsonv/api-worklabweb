@@ -10,6 +10,8 @@ import {
   fetchFormReport,
   fetchParametros,
   fetchApiReport,
+  fetchApiList,
+  fetchApiGrid,
   tabelaParaRegistros,
   upsertModuleRows,
 } from './fetchers';
@@ -98,6 +100,25 @@ export class WorklabCollector {
       `).run('atendimentos', errorMessage ? 'ERROR' : 'SUCCESS', encontrados, novos, webhooks, errorMessage, nowRecife);
 
       running.delete('atendimentos');
+
+      // Gatilho automático: novos exames sincronizados sem laudo entram na captura contínua
+      if (SettingsService.get('module.laudos.auto') === '1') {
+        const pendentes = (db
+          .prepare(`
+            SELECT COUNT(*) as c
+            FROM exames e
+            JOIN atendimentos a ON e.atendimento_id = a.id
+            WHERE e.laudo_status = 'NAO_CAPTURADO' AND e.paciente_exame_id IS NOT NULL
+          `)
+          .get() as any)?.c ?? 0;
+        if (pendentes > 0 && !running.has('laudos')) {
+          setTimeout(() => {
+            if (!running.has('laudos')) {
+              this.capturarLaudosLote(2000).catch((e2) => console.error('[laudos] pós-sync falhou:', e2.message));
+            }
+          }, 8000);
+        }
+      }
     }
 
     return { encontrados, novos, webhooks };
@@ -379,6 +400,21 @@ export class WorklabCollector {
           template: '',
           info_complementar: [],
         });
+      } else if (module.kind === 'api-list' && module.apiPath) {
+        const apiClient = await WorklabAuth.getApiClient();
+        rows = await fetchApiList(apiClient, module.apiPath);
+      } else if (module.kind === 'api-grid' && module.apiPath) {
+        const apiClient = await WorklabAuth.getApiClient();
+        rows = await fetchApiGrid(apiClient, module.apiPath, module.apiQuery || {});
+      }
+
+      // Telas que devolvem só o formulário de filtro (sem linhas de resultado) não devem
+      // persistir ruído. resultadogeral só lista resultados por paciente/sob demanda.
+      if (module.key === 'resultados_gerais' && rows.length > 0) {
+        const linhasReais = rows.filter((row) =>
+          Object.keys(row).some((k) => /^(codigo|paciente|exame|protocolo)$/i.test(k) && String(row[k] ?? '').trim() !== ''),
+        );
+        rows = linhasReais;
       }
 
       // Registros sem idField (relatórios) recebem id composto estável para upsert

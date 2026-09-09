@@ -1,7 +1,16 @@
 // Catalogo de modulos de captura do WorkLab.
 // Cada modulo define de onde os dados vem e com que frequencia sao atualizados.
 
-export type ModuleKind = 'jqgrid' | 'datatable' | 'report' | 'form-report' | 'params' | 'laudos' | 'api-report';
+export type ModuleKind =
+  | 'jqgrid'
+  | 'datatable'
+  | 'report'
+  | 'form-report'
+  | 'params'
+  | 'laudos'
+  | 'api-report'
+  | 'api-list'
+  | 'api-grid';
 
 export interface ModuleDef {
   key: string;
@@ -11,6 +20,8 @@ export interface ModuleDef {
   endpoint: string;
   // Caminho do relatório na API JSON (https://api.worklabweb.com.br)
   apiPath?: string;
+  // Parâmetros extras fixos da consulta em grids REST paginados
+  apiQuery?: Record<string, string>;
   // Campo usado como identificador unico do registro (modulos jqgrid)
   idField?: string;
   // Intervalo padrao em minutos (0 = somente sob demanda)
@@ -93,8 +104,33 @@ export const MODULES: ModuleDef[] = [
   { key: 'categorias', label: 'Categorias', kind: 'jqgrid', endpoint: 'categorias.php', defaultIntervalMin: 1440, description: 'Categorias de classificação usadas no cadastro.' },
   { key: 'portadores', label: 'Portadores', kind: 'jqgrid', endpoint: 'portadores.php', defaultIntervalMin: 1440, description: 'Portadores/contas usados no financeiro.' },
   { key: 'exames_apoio', label: 'Exames de Apoio', kind: 'jqgrid', endpoint: 'examesApoio.php', defaultIntervalMin: 1440, description: 'Exames enviados a laboratórios de apoio e seus destinos.' },
-  { key: 'info_complementar', label: 'Informações Complementares', kind: 'jqgrid', endpoint: 'infocomplementar.php', defaultIntervalMin: 1440, description: 'Campos de informações complementares do atendimento.' },
-  { key: 'usuarios', label: 'Usuários', kind: 'jqgrid', endpoint: 'newUsuario.php', defaultIntervalMin: 1440, description: 'Usuários/operadores cadastrados no WorkLab.' },
+  {
+    key: 'info_complementar',
+    label: 'Info Complementar',
+    kind: 'api-grid',
+    endpoint: 'infocomplementar.php',
+    apiPath: '/grids/info_complementar',
+    idField: 'id',
+    apiQuery: {
+      query: '[[]]',
+      ascending: 'asc',
+      orderBy: 'info_complementar.id',
+      show: 'info_complementar.*,exame.nomex as nomex',
+      joins: 'exame:exameid.id_exame.left',
+    },
+    defaultIntervalMin: 1440,
+    description: 'Campos de informações complementares por exame (API REST oficial).',
+  },
+  {
+    key: 'usuarios',
+    label: 'Usuários',
+    kind: 'api-list',
+    endpoint: 'newUsuario.php',
+    apiPath: '/usuarios',
+    idField: 'usuarioid',
+    defaultIntervalMin: 1440,
+    description: 'Usuários/operadores cadastrados no WorkLab (API REST oficial).',
+  },
   { key: 'clientes_fornecedores', label: 'Clientes e Fornecedores', kind: 'jqgrid', endpoint: 'clientefornecedor.php', defaultIntervalMin: 1440, description: 'Clientes e fornecedores cadastrados no financeiro.' },
 
   // Laudos/resultados por exame (captura via controllerResultado.php)
@@ -171,6 +207,20 @@ const KIND_INFO: Record<ModuleKind, { label: string; description: string; reques
       'Relatório disponível na API JSON do WorkLab (api.worklabweb.com.br). O coletor faz POST no caminho informado com o corpo padrão de filtros e persiste cada item retornado.',
     request: 'POST {apiPath} na api.worklabweb.com.br (JSON)',
     identifier: 'idField configurado (ex.: codigo) ou hash estável.'
+  },
+  'api-list': {
+    label: 'Lista via API REST oficial',
+    description:
+      'A API REST do WorkLab devolve um array de registros em GET. O coletor persiste cada item com o idField configurado.',
+    request: 'GET {apiPath} na api.worklabweb.com.br',
+    identifier: 'idField configurado (ex.: usuarioid).'
+  },
+  'api-grid': {
+    label: 'Grid paginado via API REST oficial',
+    description:
+      'Grid REST paginado no padrão Laravel ({ current_page, last_page, data, total }). O coletor percorre todas as páginas.',
+    request: 'GET {apiPath}?page=N&perPage=500 na api.worklabweb.com.br',
+    identifier: 'idField configurado (ex.: id).'
   },
   report: {
     label: 'Relatório (snapshot HTML)',
