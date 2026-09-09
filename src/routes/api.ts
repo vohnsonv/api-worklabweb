@@ -480,6 +480,33 @@ router.post('/laudos/batch', async (req: Request, res: Response) => {
 // Sincronizacao manual e logs
 // ---------------------------------------------------------------------------
 
+// Sincronizacao geral em segundo plano: atendimentos/exames + todos os modulos
+// de captura (usada pelo botao "Sincronizar Agora" do painel SALTDA).
+router.post('/sync/all', (req: Request, res: Response) => {
+  try {
+    if (WorklabCollector.isSyncAllRunning()) {
+      return res.status(409).json({ success: false, error: 'Uma sincronização geral já está em andamento. Aguarde a conclusão.' });
+    }
+    WorklabCollector.runSyncAll()
+      .then((resultado) => {
+        if (resultado.ignorado) return;
+        const modulos = resultado.modulos || { alvo: 0, ok: [], falhas: [] };
+        console.log(
+          `[sync/all] atendimentos: ${resultado.atendimentos?.encontrados ?? 0} encontrados; ` +
+          `modulos: ${modulos.ok.length}/${modulos.alvo} ok` +
+          (modulos.falhas.length > 0 ? ` (falhas: ${modulos.falhas.map((f) => f.key).join(', ')})` : '')
+        );
+      })
+      .catch((err) => console.error('[sync/all] falhou:', err.message));
+    res.json({
+      success: true,
+      message: 'Sincronização geral iniciada em segundo plano (atendimentos/exames + todos os módulos de captura).',
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.post('/sync/trigger', async (req: Request, res: Response) => {
   try {
     WorklabCollector.runSync().catch((err) => console.error('[api] sync atendimentos falhou:', err.message));

@@ -3,7 +3,7 @@ import db from '../db/database';
 import { SettingsService } from './settingsService';
 import { WorklabAuth } from './worklabAuth';
 import { WebhookDispatcher } from './webhookDispatcher';
-import { getModule } from './modules';
+import { getModule, MODULES } from './modules';
 import {
   fetchJqGrid,
   fetchDataTable,
@@ -20,6 +20,8 @@ import { getRecifeSqlTimestamp } from '../utils/dateUtils';
 
 // Flags de execucao para evitar sincronizacoes concorrentes.
 const running = new Set<string>();
+// Flag da sincronizacao geral (atendimentos + todos os modulos em sequencia).
+let allRunning = false;
 
 export class WorklabCollector {
   // ---------------------------------------------------------------------------
@@ -778,6 +780,75 @@ export class WorklabCollector {
       }
     } finally {
       running.delete('historico');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sincronizacao geral (atendimentos + todos os modulos de captura)
+  // ---------------------------------------------------------------------------
+
+  // Modulos de captura compativeis com a sincronizacao geral (laudos e acionado
+  // separadamente, por exame ou em lote).
+  static syncAllModuleKeys(): string[] {
+    return MODULES.filter((m) => m.kind !== 'laudos').map((m) => m.key);
+  }
+
+  static isSyncAllRunning(): boolean {
+    return allRunning;
+  }
+
+  // Roda cada modulo de captura (cadastros, relatorios, etc.) em sequencia,
+  // acumulando as falhas sem interromper os demais.
+  static async syncAllModules(): Promise<{ alvo: number; ok: string[]; falhas: Array<{ key: string; error: string }> }> {
+    const alvos = this.syncAllModuleKeys();
+    const ok: string[] = [];
+    const falhas: Array<{ key: string; error: string }> = [];
+
+    for (const key of alvos) {
+      try {
+        await this.syncModule(key);
+        ok.push(key);
+      } catch (err: any) {
+        falhas.push({ key, error: err?.message || 'Erro desconhecido' });
+      }
+    }
+
+    return { alvo: alvos.length, ok, falhas };
+  }
+
+  // Sincronizacao completa: atendimentos/exames + todos os modulos de captura.
+  // Executada em segundo plano pelo botao "Sincronizar Agora" do painel.
+  static async runSyncAll(): Promise<{
+    ignorado?: boolean;
+    atendimentos?: { encontrados: number; novos: number; webhooks: number };
+    modulos?: { alvo: number; ok: string[]; falhas: Array<{ key: string; error: string }> };
+  }> {
+    if (allRunning) {
+      return { ignorado: true };
+    }
+    allRunning = true;
+    try {
+      const atendimentos = await this.runSync();
+      const modulos = await this.syncAllModules();
+      return { atendimentos, modulos };
+    } finally {
+      allRunning = false;
+    }
+  }
+
+  // Primeira rodada apos o boot: dispara os modulos de baixo intervalo
+  // (<= 60 min) para que o painel nao fique horas em "sem execucao".
+  static async primeiraRodadaModulos(): Promise<void> {
+    if (!SettingsService.isCollectorEnabled()) return;
+    if (allRunning || running.size > 0) return;
+
+    const alvos = MODULES.filter((m) => m.kind !== 'laudos' && m.defaultIntervalMin <= 60).map((m) => m.key);
+    for (const key of alvos) {
+      try {
+        await this.syncModule(key);
+      } catch (err: any) {
+        console.error(`[collector] Primeira rodada falhou em ${key}:`, err?.message);
+      }
     }
   }
 }

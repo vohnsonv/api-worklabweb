@@ -53,6 +53,16 @@ app.listen(ENV.PORT, () => {
 
   // Agendador dos modulos de captura (orçamentos, fichario, cadastros, etc.)
   Scheduler.start();
+
+  // Primeira rodada de modulos de baixo intervalo apos o boot (evita que o
+  // painel fique horas mostrando "sem execucao" nos cards de captura).
+  setTimeout(() => {
+    if (SettingsService.isCollectorEnabled()) {
+      WorklabCollector.primeiraRodadaModulos().catch((err) =>
+        console.error('[app] Primeira rodada de modulos falhou:', err.message)
+      );
+    }
+  }, 6000);
 });
 
 // Encerramento limpo: fecha o SQLite antes do teardown do Node (evita assert do
