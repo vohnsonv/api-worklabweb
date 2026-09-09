@@ -73,11 +73,16 @@ export class WorklabCollector {
 
     try {
       const apiClient = await WorklabAuth.getApiClient();
+      // Janela da sincronização rotineira: preferência para dias exatos
+      // (sync_window_days, padrão 30 dias). Compatibilidade: se apenas
+      // sync_window_months estiver configurado, converte para ~30 dias/mês.
+      const windowDays = SettingsService.getNumber('sync_window_days', 0);
       const windowMonths = SettingsService.getNumber('sync_window_months', 5);
+      const diasJanela = windowDays > 0 ? windowDays : windowMonths * 30;
 
       const dFim = new Date();
       const dInicio = new Date();
-      dInicio.setMonth(dInicio.getMonth() - windowMonths);
+      dInicio.setDate(dInicio.getDate() - diasJanela);
 
       const strInicio = dInicio.toISOString().split('T')[0];
       const strFim = dFim.toISOString().split('T')[0];

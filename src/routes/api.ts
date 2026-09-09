@@ -38,7 +38,8 @@ const SETTINGS_KEYS = new Set([
   'worklab_password',
   'api_key',
   'sync_interval_minutes',
-  'sync_window_months'
+  'sync_window_months',
+  'sync_window_days'
 ]);
 
 // ---------------------------------------------------------------------------
