@@ -10,7 +10,16 @@ export type ModuleKind =
   | 'laudos'
   | 'api-report'
   | 'api-list'
-  | 'api-grid';
+  | 'api-grid'
+  | 'flow';
+
+export interface FlowStepDef {
+  acao: 'fill' | 'select' | 'click' | 'wait';
+  seletor?: string;
+  valor?: string;
+  texto?: string;
+  ms?: number;
+}
 
 export interface ModuleDef {
   key: string;
@@ -32,6 +41,12 @@ export interface ModuleDef {
   formParams?: Record<string, string>;
   // Janela padrao (em dias) usada para preencher {dataInicio} nos relatorios
   windowDays?: number;
+  // Fluxo de extração assistida (kind 'flow'): navega, preenche e clica na tela
+  flow?: {
+    passos: FlowStepDef[];
+    // 'kv' = tabelas chave/valor (ex.: resumo de caixa); 'tabela' = tabela de resultados
+    tipo?: 'kv' | 'tabela';
+  };
 }
 
 export const MODULES: ModuleDef[] = [
@@ -80,8 +95,26 @@ export const MODULES: ModuleDef[] = [
     endpoint: 'resultadogeral.php',
     defaultIntervalMin: 60,
     windowDays: 30,
-    description: 'Relação geral de resultados/laudos por período, seção e local.',
+    description: 'Relação geral de resultados por período, seção e local.',
     formParams: { tbdtinicio: '{dataInicio}', tbdtfim: '{dataFim}', cblLocal: '', cblSecao: '', tbdtexame: '', rdbOpcao: 'dtcadastro', tbverificar: '', idpaciente: '0' },
+  },
+  {
+    key: 'movimento_caixa',
+    label: 'Movimento de Caixa',
+    kind: 'flow',
+    endpoint: 'movimento_caixa.php',
+    defaultIntervalMin: 240,
+    windowDays: 30,
+    description: 'Resumo do caixa do período (saldo inicial, entradas/saídas e totais) — extração assistida da tela.',
+    flow: {
+      tipo: 'kv',
+      passos: [
+        { acao: 'fill', seletor: '#tbdtinicio', valor: '{dataInicio}' },
+        { acao: 'fill', seletor: '#tbdtfim', valor: '{dataFim}' },
+        { acao: 'click', seletor: '#pesquisar' },
+        { acao: 'wait', ms: 6000 },
+      ],
+    },
   },
 
   // Configuracao (parametros do laboratorio)
@@ -221,6 +254,13 @@ const KIND_INFO: Record<ModuleKind, { label: string; description: string; reques
       'Grid REST paginado no padrão Laravel ({ current_page, last_page, data, total }). O coletor percorre todas as páginas.',
     request: 'GET {apiPath}?page=N&perPage=500 na api.worklabweb.com.br',
     identifier: 'idField configurado (ex.: id).'
+  },
+  flow: {
+    label: 'Extração assistida (Playwright)',
+    description:
+      'Navega na tela real do WorkLab (login de sessão), preenche o período/filtros, clica em Pesquisar e raspa o HTML renderizado. Usado quando a tela só mostra dados após interação.',
+    request: 'Fluxo no navegador headless ({endpoint})',
+    identifier: 'Conteúdo da tela (resumo chave/valor ou tabela) — registro por janela.'
   },
   report: {
     label: 'Relatório (snapshot HTML)',

@@ -15,6 +15,7 @@ import {
   tabelaParaRegistros,
   upsertModuleRows,
 } from './fetchers';
+import { extrairHtmlPorFluxo, tabelasChaveValor } from './browserExtractor';
 import { getRecifeSqlTimestamp } from '../utils/dateUtils';
 
 // Flags de execucao para evitar sincronizacoes concorrentes.
@@ -412,6 +413,45 @@ export class WorklabCollector {
       } else if (module.kind === 'api-grid' && module.apiPath) {
         const apiClient = await WorklabAuth.getApiClient();
         rows = await fetchApiGrid(apiClient, module.apiPath, module.apiQuery || {});
+      } else if (module.kind === 'flow' && module.flow) {
+        // Extração assistida: navega na tela real (Playwright) e raspa o resultado
+        const fim = new Date();
+        const inicio = new Date();
+        inicio.setDate(inicio.getDate() - (module.windowDays || 30));
+        const br = (d: Date) =>
+          `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+        const passos = module.flow.passos.map((passo) => ({
+          ...passo,
+          valor: passo.valor?.replace('{dataInicio}', br(inicio)).replace('{dataFim}', br(fim)),
+        }));
+        const html = await extrairHtmlPorFluxo({
+          url: `https://www.worklabweb.com.br/${module.endpoint}`,
+          passos,
+        });
+
+        if (module.flow.tipo === 'kv') {
+          const kv = tabelasChaveValor(html);
+          const mapa = new Map<string, string>();
+          for (const linha of kv) {
+            // descarta placeholders não renderizados (${...}) de tabelas-template ocultas
+            if (linha.valor.includes('${')) continue;
+            const rotulo = linha.rotulo.replace(/\s+/g, ' ').trim();
+            if (!mapa.has(rotulo)) mapa.set(rotulo, linha.valor);
+          }
+          if (mapa.size > 0) {
+            rows = [
+              {
+                dataInicio: br(inicio),
+                dataFim: br(fim),
+                __rid: `${br(inicio)}_${br(fim)}`,
+                ...Object.fromEntries(mapa),
+              },
+            ];
+          }
+        } else {
+          rows = tabelaParaRegistros(html);
+        }
       }
 
       // Telas que devolvem só o formulário de filtro (sem linhas de resultado) não devem
